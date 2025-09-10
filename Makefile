@@ -7,49 +7,49 @@ help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 build: ## Build all Docker containers
-	docker-compose build
+	docker compose build
 
 up: ## Start all services in detached mode
-	docker-compose up -d
+	docker compose up -d
 
 down: ## Stop and remove all containers
-	docker-compose down
+	docker compose down
 
 logs: ## Follow logs for all services
-	docker-compose logs -f
+	docker compose logs -f
 
 test: ## Run tests for all services
 	@echo "Running tests for all services..."
 	@for service in mcp_RealWorldDataIngestor mcp_EHRConnector mcp_ClaimsDataParser mcp_SiteFeasibilityPredictor mcp_DiversityIndexMapper mcp_ProtocolComplexityScorer mcp_SoA_Comparator orchestrator; do \
 		echo "Testing $$service..."; \
-		docker-compose run --rm $$service pytest || exit 1; \
+		docker compose run --rm $$service pytest || exit 1; \
 	done
 	@echo "All tests passed!"
 
 test-service: ## Test specific service (usage: make test-service SERVICE=orchestrator)
-	docker-compose run --rm $(SERVICE) pytest
+	docker compose run --rm $(SERVICE) pytest
 
 restart: ## Restart all services
-	docker-compose restart
+	docker compose restart
 
 restart-service: ## Restart specific service (usage: make restart-service SERVICE=orchestrator)
-	docker-compose restart $(SERVICE)
+	docker compose restart $(SERVICE)
 
 ps: ## Show running containers
-	docker-compose ps
+	docker compose ps
 
 clean: ## Remove all containers, networks, and volumes
-	docker-compose down -v
+	docker compose down -v
 	docker system prune -f
 
 frontend-dev: ## Start frontend in development mode
 	cd frontend && npm install && npm start
 
 backend-shell: ## Open shell in orchestrator container
-	docker-compose exec orchestrator /bin/bash
+	docker compose exec orchestrator /bin/bash
 
 service-shell: ## Open shell in specific service (usage: make service-shell SERVICE=mcp_protocolscorer)
-	docker-compose exec $(SERVICE) /bin/bash
+	docker compose exec $(SERVICE) /bin/bash
 
 check-health: ## Check health of all services
 	@echo "Checking service health..."
@@ -88,7 +88,7 @@ dev: up logs ## Start services and follow logs
 stop: down ## Alias for down
 
 rebuild: ## Rebuild and restart all services
-	docker-compose down
-	docker-compose build --no-cache
-	docker-compose up -d
+	docker compose down
+	docker compose build --no-cache
+	docker compose up -d
 	@echo "Services rebuilt and started. Check logs with 'make logs'"

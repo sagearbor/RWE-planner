@@ -1,6 +1,7 @@
 # Global RWE Study Planner
 
 **A synergistic tool that integrates seven MCP services to provide a comprehensive, data-driven approach to Real-World Evidence (RWE) study design and site selection.**
+Overview available at https://g.co/gemini/share/42ac8f27887a 
 
 ### 1. Problem Statement
 
