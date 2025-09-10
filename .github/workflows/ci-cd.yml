@@ -1,0 +1,140 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - mcp_RealWorldDataIngestor
+          - mcp_EHRConnector
+          - mcp_ClaimsDataParser
+          - mcp_SiteFeasibilityPredictor
+          - mcp_DiversityIndexMapper
+          - mcp_ProtocolComplexityScorer
+          - mcp_SoA_Comparator
+          - orchestrator
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        cd services/${{ matrix.service }}
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+    
+    - name: Run tests
+      run: |
+        cd services/${{ matrix.service }}
+        pytest test_main.py --cov=. --cov-report=xml
+    
+    - name: Upload coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./services/${{ matrix.service }}/coverage.xml
+        flags: ${{ matrix.service }}
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    strategy:
+      matrix:
+        service:
+          - mcp_RealWorldDataIngestor
+          - mcp_EHRConnector
+          - mcp_ClaimsDataParser
+          - mcp_SiteFeasibilityPredictor
+          - mcp_DiversityIndexMapper
+          - mcp_ProtocolComplexityScorer
+          - mcp_SoA_Comparator
+          - orchestrator
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v2
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v4
+      with:
+        context: ./services/${{ matrix.service }}
+        push: true
+        tags: |
+          ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:latest
+          ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.sha }}
+  
+  build-frontend:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+    
+    - name: Install dependencies
+      run: |
+        cd frontend
+        npm ci || npm install
+    
+    - name: Build frontend
+      run: |
+        cd frontend
+        npm run build
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: frontend-build
+        path: frontend/build/
+  
+  deploy-to-azure:
+    needs: [build-and-push, build-frontend]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+    
+    - name: Deploy to Azure Container Instances
+      run: |
+        # Deploy script will be added when Azure resources are provisioned
+        echo "Deployment to Azure will be configured once resources are set up"
+        # az container create --resource-group rwe-planner-rg \
+        #   --name rwe-planner-services \
+        #   --image ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/orchestrator:latest \
+        #   --dns-name-label rwe-planner \
+        #   --ports 8240

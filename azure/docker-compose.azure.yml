@@ -1,0 +1,108 @@
+version: '3.8'
+
+# Azure-specific Docker Compose configuration
+# This file is used for deploying to Azure Container Instances
+
+services:
+  # --- MCP Services ---
+  mcp_dataingestor:
+    image: ${ACR_REGISTRY}/mcp_dataingestor:${TAG:-latest}
+    container_name: mcp_dataingestor
+    networks:
+      - rwe_network
+    environment:
+      - SERVICE_NAME=mcp_RealWorldDataIngestor
+      - PORT=8240
+      - AZURE_KEY_VAULT_URL=${AZURE_KEY_VAULT_URL}
+
+  mcp_ehrconnector:
+    image: ${ACR_REGISTRY}/mcp_ehrconnector:${TAG:-latest}
+    container_name: mcp_ehrconnector
+    networks:
+      - rwe_network
+    environment:
+      - SERVICE_NAME=mcp_EHRConnector
+      - PORT=8240
+      - AZURE_KEY_VAULT_URL=${AZURE_KEY_VAULT_URL}
+
+  mcp_claimsparser:
+    image: ${ACR_REGISTRY}/mcp_claimsparser:${TAG:-latest}
+    container_name: mcp_claimsparser
+    networks:
+      - rwe_network
+    environment:
+      - SERVICE_NAME=mcp_ClaimsDataParser
+      - PORT=8240
+      - AZURE_KEY_VAULT_URL=${AZURE_KEY_VAULT_URL}
+
+  mcp_feasibility:
+    image: ${ACR_REGISTRY}/mcp_feasibility:${TAG:-latest}
+    container_name: mcp_feasibility
+    networks:
+      - rwe_network
+    environment:
+      - SERVICE_NAME=mcp_SiteFeasibilityPredictor
+      - PORT=8240
+      - AZURE_KEY_VAULT_URL=${AZURE_KEY_VAULT_URL}
+
+  mcp_diversity:
+    image: ${ACR_REGISTRY}/mcp_diversity:${TAG:-latest}
+    container_name: mcp_diversity
+    networks:
+      - rwe_network
+    environment:
+      - SERVICE_NAME=mcp_DiversityIndexMapper
+      - PORT=8240
+      - AZURE_KEY_VAULT_URL=${AZURE_KEY_VAULT_URL}
+
+  mcp_protocolscorer:
+    image: ${ACR_REGISTRY}/mcp_protocolscorer:${TAG:-latest}
+    container_name: mcp_protocolscorer
+    networks:
+      - rwe_network
+    environment:
+      - SERVICE_NAME=mcp_ProtocolComplexityScorer
+      - PORT=8240
+      - AZURE_KEY_VAULT_URL=${AZURE_KEY_VAULT_URL}
+
+  mcp_soacomparator:
+    image: ${ACR_REGISTRY}/mcp_soacomparator:${TAG:-latest}
+    container_name: mcp_soacomparator
+    networks:
+      - rwe_network
+    environment:
+      - SERVICE_NAME=mcp_SoA_Comparator
+      - PORT=8240
+      - AZURE_KEY_VAULT_URL=${AZURE_KEY_VAULT_URL}
+
+  # --- Orchestrator Service ---
+  orchestrator:
+    image: ${ACR_REGISTRY}/orchestrator:${TAG:-latest}
+    container_name: orchestrator
+    ports:
+      - "80:8240"
+    networks:
+      - rwe_network
+    depends_on:
+      - mcp_dataingestor
+      - mcp_ehrconnector
+      - mcp_claimsparser
+      - mcp_feasibility
+      - mcp_diversity
+      - mcp_protocolscorer
+      - mcp_soacomparator
+    environment:
+      - SERVICE_NAME=orchestrator
+      - PORT=8240
+      - DATA_INGESTOR_URL=http://mcp_dataingestor:8240
+      - EHR_CONNECTOR_URL=http://mcp_ehrconnector:8240
+      - CLAIMS_PARSER_URL=http://mcp_claimsparser:8240
+      - FEASIBILITY_URL=http://mcp_feasibility:8240
+      - DIVERSITY_URL=http://mcp_diversity:8240
+      - PROTOCOL_URL=http://mcp_protocolscorer:8240
+      - SOA_URL=http://mcp_soacomparator:8240
+      - AZURE_KEY_VAULT_URL=${AZURE_KEY_VAULT_URL}
+
+networks:
+  rwe_network:
+    driver: bridge

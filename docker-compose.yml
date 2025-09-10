@@ -1,0 +1,144 @@
+version: '3.8'
+
+services:
+  # --- MCP Services ---
+  mcp_dataingestor:
+    build: ./services/mcp_RealWorldDataIngestor
+    container_name: mcp_dataingestor
+    volumes:
+      - ./services/mcp_RealWorldDataIngestor:/app
+    networks:
+      - rwe_network
+    ports:
+      - "8241:8240"
+    environment:
+      - SERVICE_NAME=mcp_RealWorldDataIngestor
+      - PORT=8240
+
+  mcp_ehrconnector:
+    build: ./services/mcp_EHRConnector
+    container_name: mcp_ehrconnector
+    volumes:
+      - ./services/mcp_EHRConnector:/app
+    networks:
+      - rwe_network
+    ports:
+      - "8242:8240"
+    environment:
+      - SERVICE_NAME=mcp_EHRConnector
+      - PORT=8240
+
+  mcp_claimsparser:
+    build: ./services/mcp_ClaimsDataParser
+    container_name: mcp_claimsparser
+    volumes:
+      - ./services/mcp_ClaimsDataParser:/app
+    networks:
+      - rwe_network
+    ports:
+      - "8243:8240"
+    environment:
+      - SERVICE_NAME=mcp_ClaimsDataParser
+      - PORT=8240
+
+  mcp_feasibility:
+    build: ./services/mcp_SiteFeasibilityPredictor
+    container_name: mcp_feasibility
+    volumes:
+      - ./services/mcp_SiteFeasibilityPredictor:/app
+    networks:
+      - rwe_network
+    ports:
+      - "8244:8240"
+    environment:
+      - SERVICE_NAME=mcp_SiteFeasibilityPredictor
+      - PORT=8240
+
+  mcp_diversity:
+    build: ./services/mcp_DiversityIndexMapper
+    container_name: mcp_diversity
+    volumes:
+      - ./services/mcp_DiversityIndexMapper:/app
+    networks:
+      - rwe_network
+    ports:
+      - "8245:8240"
+    environment:
+      - SERVICE_NAME=mcp_DiversityIndexMapper
+      - PORT=8240
+
+  mcp_protocolscorer:
+    build: ./services/mcp_ProtocolComplexityScorer
+    container_name: mcp_protocolscorer
+    volumes:
+      - ./services/mcp_ProtocolComplexityScorer:/app
+    networks:
+      - rwe_network
+    ports:
+      - "8246:8240"
+    environment:
+      - SERVICE_NAME=mcp_ProtocolComplexityScorer
+      - PORT=8240
+
+  mcp_soacomparator:
+    build: ./services/mcp_SoA_Comparator
+    container_name: mcp_soacomparator
+    volumes:
+      - ./services/mcp_SoA_Comparator:/app
+    networks:
+      - rwe_network
+    ports:
+      - "8247:8240"
+    environment:
+      - SERVICE_NAME=mcp_SoA_Comparator
+      - PORT=8240
+
+  # --- Orchestrator Service ---
+  orchestrator:
+    build: ./services/orchestrator
+    container_name: orchestrator
+    volumes:
+      - ./services/orchestrator:/app
+    ports:
+      - "8250:8240"
+    networks:
+      - rwe_network
+    depends_on:
+      - mcp_dataingestor
+      - mcp_ehrconnector
+      - mcp_claimsparser
+      - mcp_feasibility
+      - mcp_diversity
+      - mcp_protocolscorer
+      - mcp_soacomparator
+    environment:
+      - SERVICE_NAME=orchestrator
+      - PORT=8240
+      - DATA_INGESTOR_URL=http://mcp_dataingestor:8240
+      - EHR_CONNECTOR_URL=http://mcp_ehrconnector:8240
+      - CLAIMS_PARSER_URL=http://mcp_claimsparser:8240
+      - FEASIBILITY_URL=http://mcp_feasibility:8240
+      - DIVERSITY_URL=http://mcp_diversity:8240
+      - PROTOCOL_URL=http://mcp_protocolscorer:8240
+      - SOA_URL=http://mcp_soacomparator:8240
+
+  # --- Frontend Service ---
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    networks:
+      - rwe_network
+    depends_on:
+      - orchestrator
+    environment:
+      - REACT_APP_API_URL=http://localhost:8250
+      - NODE_ENV=development
+
+networks:
+  rwe_network:
+    driver: bridge

@@ -1,0 +1,153 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "appServicePlanName": {
+      "type": "string",
+      "defaultValue": "rwe-planner-plan",
+      "metadata": {
+        "description": "Name of the App Service Plan"
+      }
+    },
+    "containerRegistryName": {
+      "type": "string",
+      "defaultValue": "rweplanner",
+      "metadata": {
+        "description": "Name of the Azure Container Registry"
+      }
+    },
+    "keyVaultName": {
+      "type": "string",
+      "defaultValue": "rwe-planner-kv",
+      "metadata": {
+        "description": "Name of the Key Vault"
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Location for all resources"
+      }
+    }
+  },
+  "variables": {
+    "services": [
+      "mcp-realworlddataingestor",
+      "mcp-ehrconnector",
+      "mcp-claimsdataparser",
+      "mcp-sitefeasibilitypredictor",
+      "mcp-diversityindexmapper",
+      "mcp-protocolcomplexityscorer",
+      "mcp-soa-comparator",
+      "orchestrator",
+      "frontend"
+    ]
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ContainerRegistry/registries",
+      "apiVersion": "2021-09-01",
+      "name": "[parameters('containerRegistryName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Basic"
+      },
+      "properties": {
+        "adminUserEnabled": true
+      }
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults",
+      "apiVersion": "2021-06-01-preview",
+      "name": "[parameters('keyVaultName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "sku": {
+          "family": "A",
+          "name": "standard"
+        },
+        "tenantId": "[subscription().tenantId]",
+        "accessPolicies": [],
+        "enabledForDeployment": true,
+        "enabledForTemplateDeployment": true,
+        "enableSoftDelete": false
+      }
+    },
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2021-02-01",
+      "name": "[parameters('appServicePlanName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "B2",
+        "tier": "Basic",
+        "size": "B2",
+        "family": "B",
+        "capacity": 1
+      },
+      "kind": "linux",
+      "properties": {
+        "reserved": true
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2021-02-01",
+      "name": "[concat('rwe-', variables('services')[copyIndex()])]",
+      "location": "[parameters('location')]",
+      "kind": "app,linux,container",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverfarms', parameters('appServicePlanName'))]",
+        "[resourceId('Microsoft.ContainerRegistry/registries', parameters('containerRegistryName'))]"
+      ],
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', parameters('appServicePlanName'))]",
+        "siteConfig": {
+          "linuxFxVersion": "[concat('DOCKER|', reference(resourceId('Microsoft.ContainerRegistry/registries', parameters('containerRegistryName'))).loginServer, '/', variables('services')[copyIndex()], ':latest')]",
+          "appSettings": [
+            {
+              "name": "DOCKER_REGISTRY_SERVER_URL",
+              "value": "[concat('https://', reference(resourceId('Microsoft.ContainerRegistry/registries', parameters('containerRegistryName'))).loginServer)]"
+            },
+            {
+              "name": "DOCKER_REGISTRY_SERVER_USERNAME",
+              "value": "[listCredentials(resourceId('Microsoft.ContainerRegistry/registries', parameters('containerRegistryName')), '2021-09-01').username]"
+            },
+            {
+              "name": "DOCKER_REGISTRY_SERVER_PASSWORD",
+              "value": "[listCredentials(resourceId('Microsoft.ContainerRegistry/registries', parameters('containerRegistryName')), '2021-09-01').passwords[0].value]"
+            },
+            {
+              "name": "WEBSITES_PORT",
+              "value": "8240"
+            },
+            {
+              "name": "PORT",
+              "value": "8240"
+            }
+          ],
+          "alwaysOn": false
+        }
+      },
+      "copy": {
+        "name": "serviceCopy",
+        "count": "[length(variables('services'))]"
+      }
+    }
+  ],
+  "outputs": {
+    "containerRegistryLoginServer": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ContainerRegistry/registries', parameters('containerRegistryName'))).loginServer]"
+    },
+    "frontendUrl": {
+      "type": "string",
+      "value": "[concat('https://rwe-frontend.azurewebsites.net')]"
+    },
+    "orchestratorUrl": {
+      "type": "string",
+      "value": "[concat('https://rwe-orchestrator.azurewebsites.net')]"
+    }
+  }
+}
